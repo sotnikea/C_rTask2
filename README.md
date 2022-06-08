@@ -116,9 +116,99 @@ private:
 - Modified project
 
 # Needs fixes
-- Smart pointers are not used
-- Methods like empy, size must be constant
-- Assignment operator will not work correctly
+- ***Smart pointers are not used***
+
+Removed a structure containing a data vector, a vector of names, as well as a bare pointer. In the new implementation, the data and it names are paired and added to the vector. 
+
+~~~C++
+using vector_data = std::vector<std::pair<T, std::string>>;	//save pair of T data and string name
+~~~
+
+The result is wrapped in a shared_ptr smart pointer
+~~~C++
+std::shared_ptr<vector_data> m_data{};
+~~~
+___
+
+- ***Methods like empy, size must be constant***
+
+Unfortunately, there was indeed such an omission in the initial implementation. All methods that do not change data are made constant
+
+~~~C++
+//return if data vector is empty
+template <typename T>
+bool MyVector<T>::empty() const {
+	return m_data->empty();
+}
+~~~
+~~~C++
+//return size of data vector
+template <typename T>
+size_t MyVector<T>::size() const {
+	return m_data->size();
+}
+~~~
+___
+- ***Assignment operator will not work correctly***
+
+Copy assignment operator and move assignment operator are prohibited in solution
+
+~~~C++
+MyVector& operator =(const MyVector& other) = delete;	//denied operator =
+MyVector& operator =(MyVector&& other) = delete;		//denied operator =
+~~~
+____
+
 - No strong exception safety guarantee
+
+Unfortunately, given the tight deadlines, there was not enough time to conduct an in-depth analysis of each method. Part of the methods that change the data structure are indicated by a guarantee of no exception
+
+~~~C++
+//add new element in vector
+void push_back(const T& obj, const std::string& name) noexcept;	
+
+//Return iterator to fisrt element of data vector	
+typename std::vector<std::pair<T, std::string>>::iterator begin() noexcept;	
+
+//Return iterator to the end of data vector	
+typename std::vector<std::pair<T, std::string>>::iterator end() noexcept;		
+~~~
+____
 - All non-const methods must create a copy
+
+Probably some of the methods of the original solution did not satisfy this principle. Considering the change in the structure of the data stored in the class, the obligatory data copying was controlled
+
+~~~C++
+void copy_datas();	//copy data vector, in case of operation write
+~~~
+____
 - Proxy class is not needed, you can immediately make a copy in non-const methods
+
+The question arises, witch role playing those methods without using a class proxy. In its current form, the const method never seems to run. However, the proxy class is excluded from the final solution
+
+~~~C++
+//const overload [size_t]
+template <typename T>
+const std::pair<const T&, const std::string&> MyVector<T>::operator[](size_t index) const
+{
+	if (index >= this->m_data->size() || index < 0)
+	{
+		throw std::out_of_range("Index is out of range");
+	}
+	return this->m_data->operator[](index);
+}
+~~~
+
+~~~C++
+//overload [size_t]
+template <typename T>
+std::pair<T, std::string>& MyVector<T>::operator[](size_t index)
+{
+	if (index >= this->m_data->size() || index < 0)
+	{
+		throw std::out_of_range("Index is out of range");
+	}
+	copy_datas();	//becouse changed data
+	return this->m_data->operator[](index);
+}
+~~~
